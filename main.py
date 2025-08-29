@@ -1,6 +1,7 @@
 import os
 import re
 import asyncio
+from collections import defaultdict
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message
@@ -18,7 +19,7 @@ dp = Dispatcher()
 scheduler = AsyncIOScheduler()
 
 # Хранилище для задач пользователей
-user_tasks = {}
+user_tasks: defaultdict[int, list[tuple[str, datetime]]] = defaultdict(list)
 
 def parse_event_and_time(text):
     """
@@ -144,7 +145,7 @@ async def calendar_handler(message: Message):
 async def show_tasks_handler(message: Message):
     user_id = message.from_user.id
     
-    if user_id not in user_tasks or not user_tasks[user_id]:
+    if not user_tasks[user_id]:
         await message.answer("У вас нет активных задач")
         return
     
@@ -182,8 +183,6 @@ async def handle_event_text(message: Message):
         
         # Сохраняем задачу для пользователя
         user_id = message.from_user.id
-        if user_id not in user_tasks:
-            user_tasks[user_id] = []
         
         # Создаем задачу в планировщике
         job_id = f"user_{user_id}_task_{len(user_tasks[user_id])}"
