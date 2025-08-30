@@ -50,55 +50,56 @@ def parse_event_and_time(text):
     
     for pattern, pattern_type in patterns:
         match = re.search(pattern, text.lower())
-        if match:
-            try:
-                if pattern_type == 'time_only':
-                    # Только время - устанавливаем на сегодня
-                    hour, minute = map(int, match.groups())
-                    now = datetime.now()
-                    target_datetime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                    
-                    # Если время уже прошло, устанавливаем на завтра
-                    if target_datetime <= now:
-                        target_datetime += timedelta(days=1)
-                        
-                elif pattern_type == 'relative_time':
-                    # Относительное время
-                    amount = int(match.group(1))
-                    unit = match.group(2).lower()
-                    
-                    if 'час' in unit:
-                        target_datetime = datetime.now() + timedelta(hours=amount)
-                    elif 'минут' in unit:
-                        target_datetime = datetime.now() + timedelta(minutes=amount)
-                        
-                elif pattern_type == 'full_datetime':
-                    # Полная дата и время
-                    day, month, year, hour, minute = map(int, match.groups())
-                    target_datetime = datetime(year, month, day, hour, minute)
-                    
-                elif pattern_type == 'tomorrow':
-                    # Завтра в указанное время
-                    hour, minute = map(int, match.groups())
-                    tomorrow = datetime.now() + timedelta(days=1)
-                    target_datetime = tomorrow.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                    
-                elif pattern_type == 'today':
-                    # Сегодня в указанное время
-                    hour, minute = map(int, match.groups())
-                    today = datetime.now()
-                    target_datetime = today.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                    
-                    # Если время уже прошло, устанавливаем на завтра
-                    if target_datetime <= today:
-                        target_datetime += timedelta(days=1)
+        if not match:
+            continue
+        try:
+            if pattern_type == 'time_only':
+                # Только время - устанавливаем на сегодня
+                hour, minute = map(int, match.groups())
+                now = datetime.now()
+                target_datetime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
                 
-                # Удаляем найденное время из текста события
-                event_text = re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
-                break
+                # Если время уже прошло, устанавливаем на завтра
+                if target_datetime <= now:
+                    target_datetime += timedelta(days=1)
+                    
+            elif pattern_type == 'relative_time':
+                # Относительное время
+                amount = int(match.group(1))
+                unit = match.group(2).lower()
                 
-            except ValueError:
-                continue
+                if 'час' in unit:
+                    target_datetime = datetime.now() + timedelta(hours=amount)
+                elif 'минут' in unit:
+                    target_datetime = datetime.now() + timedelta(minutes=amount)
+                    
+            elif pattern_type == 'full_datetime':
+                # Полная дата и время
+                day, month, year, hour, minute = map(int, match.groups())
+                target_datetime = datetime(year, month, day, hour, minute)
+                
+            elif pattern_type == 'tomorrow':
+                # Завтра в указанное время
+                hour, minute = map(int, match.groups())
+                tomorrow = datetime.now() + timedelta(days=1)
+                target_datetime = tomorrow.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                
+            elif pattern_type == 'today':
+                # Сегодня в указанное время
+                hour, minute = map(int, match.groups())
+                today = datetime.now()
+                target_datetime = today.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # Если время уже прошло, устанавливаем на завтра
+                if target_datetime <= today:
+                    target_datetime += timedelta(days=1)
+            
+            # Удаляем найденное время из текста события
+            event_text = re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
+            break
+            
+        except ValueError:
+            continue
     
     # Убираем лишние слова из текста события
     cleanup_words = ['завтра', 'сегодня', 'через', 'в', 'на', 'час', 'часа', 'часов', 'минут', 'минуты', 'минута']
