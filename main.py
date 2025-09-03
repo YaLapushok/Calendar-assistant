@@ -39,7 +39,7 @@ def schedule_telegram_notification(
     # Сохраняем информацию о задаче
     user_tasks[user_id].append((event_text, event_datetime))
 
-def parse_event_and_time(text):
+def parse_event_and_time(text: str) -> tuple[str, datetime | None]:
     """
     Парсит текст события и извлекает время и описание события.
     Поддерживает форматы:
@@ -149,7 +149,7 @@ def parse_event_and_time(text):
     
     return event_text, target_datetime
 
-async def send_notification(chat_id: int, event_text: str):
+async def send_notification(chat_id: int, event_text: str) -> None:
     """Отправка уведомления пользователю"""
     try:
         await bot.send_message(
@@ -160,7 +160,7 @@ async def send_notification(chat_id: int, event_text: str):
         print(f"Ошибка отправки уведомления: {e}")
 
 @dp.message(Command("start"))
-async def start_handler(message: Message):
+async def start_handler(message: Message) -> None:
     await message.answer(
         "Привет! Я твой личный помощник календаря 📅\n\n"
         "Команды:\n"
@@ -170,7 +170,7 @@ async def start_handler(message: Message):
     )
 
 @dp.message(Command("task"))
-async def calendar_handler(message: Message):
+async def calendar_handler(message: Message) -> None:
     await message.answer(
         "📝 Напиши событие и время для напоминания\n\n"
         "Примеры:\n"
@@ -182,7 +182,7 @@ async def calendar_handler(message: Message):
     )
 
 @dp.message(Command("mytasks"))
-async def show_tasks_handler(message: Message):
+async def show_tasks_handler(message: Message) -> None:
     user_id = message.from_user.id
     
     if not user_tasks[user_id]:
@@ -198,7 +198,7 @@ async def show_tasks_handler(message: Message):
     await message.answer(tasks_text)
 
 @dp.message(F.text)
-async def handle_event_text(message: Message):
+async def handle_event_text(message: Message) -> None:
     try:
         # Парсим событие и время
         event_text, target_datetime = parse_event_and_time(message.text)
@@ -238,7 +238,7 @@ async def handle_event_text(message: Message):
         await message.answer("❌ Произошла ошибка при обработке события")
         print(f"Ошибка: {e}")
 
-async def main():
+async def main() -> None:
     scheduler.start()
     print("Планировщик запущен")
     
