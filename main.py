@@ -21,6 +21,24 @@ scheduler = AsyncIOScheduler()
 # Хранилище для задач пользователей
 user_tasks: defaultdict[int, list[tuple[str, datetime]]] = defaultdict(list)
 
+def schedule_telegram_notification(
+    user_id: int,
+    chat_id: int,
+    event_datetime: datetime,
+    event_text: str,
+) -> None:
+    job_id = f"user_{user_id}_task_{len(user_tasks[user_id])}"
+
+    scheduler.add_job(
+        send_notification,
+        trigger=DateTrigger(run_date=event_datetime),
+        args=[chat_id, event_text],
+        id=job_id
+    )
+
+    # Сохраняем информацию о задаче
+    user_tasks[user_id].append((event_text, event_datetime))
+
 def parse_event_and_time(text):
     """
     Парсит текст события и извлекает время и описание события.
@@ -205,19 +223,7 @@ async def handle_event_text(message: Message):
         
         # Сохраняем задачу для пользователя
         user_id = message.from_user.id
-        
-        # Создаем задачу в планировщике
-        job_id = f"user_{user_id}_task_{len(user_tasks[user_id])}"
-        
-        scheduler.add_job(
-            send_notification,
-            trigger=DateTrigger(run_date=target_datetime),
-            args=[message.chat.id, event_text],
-            id=job_id
-        )
-        
-        # Сохраняем информацию о задаче
-        user_tasks[user_id].append((event_text, target_datetime))
+        schedule_telegram_notification(user_id, message.chat.id, target_datetime, event_text)
         
         # Подтверждение создания задачи
         time_str = target_datetime.strftime("%d.%m.%Y %H:%M")
