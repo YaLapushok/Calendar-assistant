@@ -152,13 +152,10 @@ def parse_event_and_time(text: str) -> tuple[str, datetime | None]:
 
 async def send_notification(chat_id: int, event_text: str) -> None:
     """Отправка уведомления пользователю"""
-    try:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=f"⏰ Напоминание!\n\n{event_text}"
-        )
-    except Exception as e:
-        print(f"Ошибка отправки уведомления: {e}")
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"⏰ Напоминание!\n\n{event_text}"
+    )
 
 @dp.message(Command("start"))
 async def start_handler(message: Message) -> None:
@@ -202,48 +199,43 @@ async def show_tasks_handler(message: Message) -> None:
 
 @dp.message(F.text)
 async def handle_event_text(message: Message) -> None:
-    try:
-        assert message.text is not None
+    assert message.text is not None
 
-        # Парсим событие и время
-        event_text, target_datetime = parse_event_and_time(message.text)
+    # Парсим событие и время
+    event_text, target_datetime = parse_event_and_time(message.text)
 
-        if target_datetime is None:
-            await message.answer(
-                "❌ Не удалось распознать время в вашем сообщении.\n\n"
-                "Попробуйте использовать один из форматов:\n"
-                "• встреча завтра в 15:30\n"
-                "• позвонить маме через 2 часа\n"
-                "• собрание 25.12.2025 14:00\n"
-                "• напоминание 18:00"
-            )
-            return
-
-        if target_datetime <= datetime.now():
-            await message.answer("❌ Время не может быть в прошлом")
-            return
-
-        if not event_text:
-            event_text = "Напоминание"
-
-        # Сохраняем задачу для пользователя
-        assert message.from_user is not None
-
-        user_id = message.from_user.id
-        schedule_telegram_notification(user_id, message.chat.id, target_datetime, event_text)
-
-        # Подтверждение создания задачи
-        time_str = target_datetime.strftime("%d.%m.%Y %H:%M")
+    if target_datetime is None:
         await message.answer(
-            f"✅ Задача создана!\n\n"
-            f"📝 Событие: {event_text}\n"
-            f"⏰ Время: {time_str}\n\n"
-            f"Я напомню вам в указанное время!"
+            "❌ Не удалось распознать время в вашем сообщении.\n\n"
+            "Попробуйте использовать один из форматов:\n"
+            "• встреча завтра в 15:30\n"
+            "• позвонить маме через 2 часа\n"
+            "• собрание 25.12.2025 14:00\n"
+            "• напоминание 18:00"
         )
+        return
 
-    except Exception as e:
-        await message.answer("❌ Произошла ошибка при обработке события")
-        print(f"Ошибка: {e}")
+    if target_datetime <= datetime.now():
+        await message.answer("❌ Время не может быть в прошлом")
+        return
+
+    if not event_text:
+        event_text = "Напоминание"
+
+    # Сохраняем задачу для пользователя
+    assert message.from_user is not None
+
+    user_id = message.from_user.id
+    schedule_telegram_notification(user_id, message.chat.id, target_datetime, event_text)
+
+    # Подтверждение создания задачи
+    time_str = target_datetime.strftime("%d.%m.%Y %H:%M")
+    await message.answer(
+        f"✅ Задача создана!\n\n"
+        f"📝 Событие: {event_text}\n"
+        f"⏰ Время: {time_str}\n\n"
+        f"Я напомню вам в указанное время!"
+    )
 
 async def main() -> None:
     scheduler.start()
