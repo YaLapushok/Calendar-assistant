@@ -3,7 +3,7 @@ import re
 import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
 from aiogram.filters import Command
 from dotenv import load_dotenv
@@ -12,6 +12,7 @@ from apscheduler.triggers.date import DateTrigger
 
 load_dotenv()
 API_TOKEN = os.getenv('BOT_TOKEN')
+assert API_TOKEN is not None
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
@@ -21,7 +22,25 @@ scheduler = AsyncIOScheduler()
 # Хранилище для задач пользователей
 user_tasks: defaultdict[int, list[tuple[str, datetime]]] = defaultdict(list)
 
-def parse_event_and_time(text):
+def schedule_telegram_notification(
+    user_id: int,
+    chat_id: int,
+    event_datetime: datetime,
+    event_text: str,
+) -> None:
+    job_id = f"user_{user_id}_task_{len(user_tasks[user_id])}"
+
+    scheduler.add_job(
+        send_notification,
+        trigger=DateTrigger(run_date=event_datetime),
+        args=[chat_id, event_text],
+        id=job_id
+    )
+
+    # Сохраняем информацию о задаче
+    user_tasks[user_id].append((event_text, event_datetime))
+
+def parse_event_and_time(text: str) -> tuple[str, datetime | None]:
     """
     Парсит текст события и извлекает время и описание события.
     Поддерживает форматы:
@@ -30,7 +49,7 @@ def parse_event_and_time(text):
     - "собрание 25.12.2025 14:00"
     - "напоминание 14:30"
     """
-    
+
     # Паттерны для извлечения времени
     patterns = [
         # Формат: ЧЧ:ММ
@@ -44,10 +63,10 @@ def parse_event_and_time(text):
         # Формат: сегодня в ЧЧ:ММ
         (r'сегодня\s+в\s+(\d{1,2}):(\d{2})', 'today'),
     ]
-    
+
     event_text = text.strip()
     target_datetime = None
-    
+
     for pattern, pattern_type in patterns:
         match = re.search(pattern, text.lower())
         if not match:
@@ -64,21 +83,21 @@ def parse_event_and_time(text):
                 target_datetime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
             except ValueError:
                 continue
-            
+
             # Если время уже прошло, устанавливаем на завтра
             if target_datetime <= now:
                 target_datetime += timedelta(days=1)
-                
+
         elif pattern_type == 'relative_time':
             # Относительное время
             amount = int(match.group(1))
             unit = match.group(2).lower()
-            
+
             if 'час' in unit:
                 target_datetime = datetime.now() + timedelta(hours=amount)
             elif 'минут' in unit:
                 target_datetime = datetime.now() + timedelta(minutes=amount)
-                
+
         elif pattern_type == 'full_datetime':
             # Полная дата и время
             day, month, year, hour, minute = map(int, match.groups())
@@ -89,7 +108,7 @@ def parse_event_and_time(text):
                 target_datetime = datetime(year, month, day, hour, minute)
             except ValueError:
                 continue
-            
+
         elif pattern_type == 'tomorrow':
             # Завтра в указанное время
             hour, minute = map(int, match.groups())
@@ -101,7 +120,7 @@ def parse_event_and_time(text):
                 target_datetime = tomorrow.replace(hour=hour, minute=minute, second=0, microsecond=0)
             except ValueError:
                 continue
-            
+
         elif pattern_type == 'today':
             # Сегодня в указанное время
             hour, minute = map(int, match.groups())
@@ -113,36 +132,28 @@ def parse_event_and_time(text):
                 target_datetime = today.replace(hour=hour, minute=minute, second=0, microsecond=0)
             except ValueError:
                 continue
-            
+
             # Если время уже прошло, устанавливаем на завтра
             if target_datetime <= today:
                 target_datetime += timedelta(days=1)
-        
+
         # Удаляем найденное время из текста события
         event_text = re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
         break
-    
-    # Убираем лишние слова из текста события
-    cleanup_words = ['завтра', 'сегодня', 'через', 'в', 'на', 'час', 'часа', 'часов', 'минут', 'минуты', 'минута']
-    for word in cleanup_words:
-        event_text = re.sub(rf'\b{word}\b', '', event_text, flags=re.IGNORECASE)
-    
+
     event_text = ' '.join(event_text.split())
-    
+
     return event_text, target_datetime
 
-async def send_notification(chat_id: int, event_text: str):
+async def send_notification(chat_id: int, event_text: str) -> None:
     """Отправка уведомления пользователю"""
-    try:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=f"⏰ Напоминание!\n\n{event_text}"
-        )
-    except Exception as e:
-        print(f"Ошибка отправки уведомления: {e}")
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"⏰ Напоминание!\n\n{event_text}"
+    )
 
 @dp.message(Command("start"))
-async def start_handler(message: Message):
+async def start_handler(message: Message) -> None:
     await message.answer(
         "Привет! Я твой личный помощник календаря 📅\n\n"
         "Команды:\n"
@@ -152,7 +163,7 @@ async def start_handler(message: Message):
     )
 
 @dp.message(Command("task"))
-async def calendar_handler(message: Message):
+async def calendar_handler(message: Message) -> None:
     await message.answer(
         "📝 Напиши событие и время для напоминания\n\n"
         "Примеры:\n"
@@ -164,78 +175,67 @@ async def calendar_handler(message: Message):
     )
 
 @dp.message(Command("mytasks"))
-async def show_tasks_handler(message: Message):
+async def show_tasks_handler(message: Message) -> None:
+    assert message.from_user is not None
+
     user_id = message.from_user.id
-    
+
     if not user_tasks[user_id]:
         await message.answer("У вас нет активных задач")
         return
-    
+
     tasks_text = "📋 Ваши активные задачи:\n\n"
     for i, task_info in enumerate(user_tasks[user_id], 1):
         event_text, scheduled_time = task_info
         time_str = scheduled_time.strftime("%d.%m.%Y %H:%M")
         tasks_text += f"{i}. {event_text}\n   ⏱ {time_str}\n\n"
-    
+
     await message.answer(tasks_text)
 
 @dp.message(F.text)
-async def handle_event_text(message: Message):
-    try:
-        # Парсим событие и время
-        event_text, target_datetime = parse_event_and_time(message.text)
-        
-        if target_datetime is None:
-            await message.answer(
-                "❌ Не удалось распознать время в вашем сообщении.\n\n"
-                "Попробуйте использовать один из форматов:\n"
-                "• встреча завтра в 15:30\n"
-                "• позвонить маме через 2 часа\n"
-                "• собрание 25.12.2025 14:00\n"
-                "• напоминание 18:00"
-            )
-            return
-        
-        if target_datetime <= datetime.now():
-            await message.answer("❌ Время не может быть в прошлом")
-            return
-        
-        if not event_text:
-            event_text = "Напоминание"
-        
-        # Сохраняем задачу для пользователя
-        user_id = message.from_user.id
-        
-        # Создаем задачу в планировщике
-        job_id = f"user_{user_id}_task_{len(user_tasks[user_id])}"
-        
-        scheduler.add_job(
-            send_notification,
-            trigger=DateTrigger(run_date=target_datetime),
-            args=[message.chat.id, event_text],
-            id=job_id
-        )
-        
-        # Сохраняем информацию о задаче
-        user_tasks[user_id].append((event_text, target_datetime))
-        
-        # Подтверждение создания задачи
-        time_str = target_datetime.strftime("%d.%m.%Y %H:%M")
-        await message.answer(
-            f"✅ Задача создана!\n\n"
-            f"📝 Событие: {event_text}\n"
-            f"⏰ Время: {time_str}\n\n"
-            f"Я напомню вам в указанное время!"
-        )
-        
-    except Exception as e:
-        await message.answer("❌ Произошла ошибка при обработке события")
-        print(f"Ошибка: {e}")
+async def handle_event_text(message: Message) -> None:
+    assert message.text is not None
 
-async def main():
+    # Парсим событие и время
+    event_text, target_datetime = parse_event_and_time(message.text)
+
+    if target_datetime is None:
+        await message.answer(
+            "❌ Не удалось распознать время в вашем сообщении.\n\n"
+            "Попробуйте использовать один из форматов:\n"
+            "• встреча завтра в 15:30\n"
+            "• позвонить маме через 2 часа\n"
+            "• собрание 25.12.2025 14:00\n"
+            "• напоминание 18:00"
+        )
+        return
+
+    if target_datetime <= datetime.now():
+        await message.answer("❌ Время не может быть в прошлом")
+        return
+
+    if not event_text:
+        event_text = "Напоминание"
+
+    # Сохраняем задачу для пользователя
+    assert message.from_user is not None
+
+    user_id = message.from_user.id
+    schedule_telegram_notification(user_id, message.chat.id, target_datetime, event_text)
+
+    # Подтверждение создания задачи
+    time_str = target_datetime.strftime("%d.%m.%Y %H:%M")
+    await message.answer(
+        f"✅ Задача создана!\n\n"
+        f"📝 Событие: {event_text}\n"
+        f"⏰ Время: {time_str}\n\n"
+        f"Я напомню вам в указанное время!"
+    )
+
+async def main() -> None:
     scheduler.start()
     print("Планировщик запущен")
-    
+
     try:
         await dp.start_polling(bot)
     finally:
