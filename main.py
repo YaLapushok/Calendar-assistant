@@ -12,6 +12,7 @@ from apscheduler.triggers.date import DateTrigger
 
 load_dotenv()
 API_TOKEN = os.getenv('BOT_TOKEN')
+assert API_TOKEN is not None
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
@@ -183,6 +184,8 @@ async def calendar_handler(message: Message) -> None:
 
 @dp.message(Command("mytasks"))
 async def show_tasks_handler(message: Message) -> None:
+    assert message.from_user is not None
+
     user_id = message.from_user.id
 
     if not user_tasks[user_id]:
@@ -200,6 +203,8 @@ async def show_tasks_handler(message: Message) -> None:
 @dp.message(F.text)
 async def handle_event_text(message: Message) -> None:
     try:
+        assert message.text is not None
+
         # Парсим событие и время
         event_text, target_datetime = parse_event_and_time(message.text)
 
@@ -222,6 +227,8 @@ async def handle_event_text(message: Message) -> None:
             event_text = "Напоминание"
 
         # Сохраняем задачу для пользователя
+        assert message.from_user is not None
+
         user_id = message.from_user.id
         schedule_telegram_notification(user_id, message.chat.id, target_datetime, event_text)
 
