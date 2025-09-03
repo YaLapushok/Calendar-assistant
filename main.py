@@ -3,7 +3,7 @@ import re
 import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
 from aiogram.filters import Command
 from dotenv import load_dotenv
