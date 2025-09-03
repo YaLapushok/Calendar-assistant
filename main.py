@@ -141,11 +141,6 @@ def parse_event_and_time(text: str) -> tuple[str, datetime | None]:
         event_text = re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
         break
 
-    # Убираем лишние слова из текста события
-    cleanup_words = ['завтра', 'сегодня', 'через', 'в', 'на', 'час', 'часа', 'часов', 'минут', 'минуты', 'минута']
-    for word in cleanup_words:
-        event_text = re.sub(rf'\b{word}\b', '', event_text, flags=re.IGNORECASE)
-
     event_text = ' '.join(event_text.split())
 
     return event_text, target_datetime
